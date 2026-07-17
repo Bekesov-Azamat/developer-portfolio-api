@@ -3,14 +3,18 @@
 namespace App\Models;
 
 use App\Enums\AiStatus;
+use App\Enums\ContactRequestType;
 use App\Enums\MailStatus;
 use App\Enums\ProcessingStatus;
+use App\Enums\Sentiment;
 use Database\Factories\ContactSubmissionFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 
 /**
+ * @property Sentiment|null $sentiment
+ * @property ContactRequestType|null $request_type
  * @property ProcessingStatus $processing_status
  * @property AiStatus $ai_status
  * @property MailStatus $owner_mail_status
@@ -56,7 +60,9 @@ class ContactSubmission extends Model
     protected function casts(): array
     {
         return [
+            'sentiment' => Sentiment::class,
             'sentiment_score' => 'decimal:4',
+            'request_type' => ContactRequestType::class,
             'processing_status' => ProcessingStatus::class,
             'ai_status' => AiStatus::class,
             'owner_mail_status' => MailStatus::class,
