@@ -5,6 +5,7 @@ namespace App\Repositories;
 use App\Contracts\Repositories\ContactSubmissionRepository;
 use App\Data\Ai\AiAnalysisResult;
 use App\Data\ContactSubmissionData;
+use App\Data\Mail\ContactMailResult;
 use App\Enums\AiStatus;
 use App\Enums\MailStatus;
 use App\Enums\ProcessingStatus;
@@ -56,6 +57,39 @@ final class EloquentContactSubmissionRepository implements ContactSubmissionRepo
             'ai_completion_tokens' => $result->completionTokens,
             'ai_total_tokens' => $result->totalTokens,
             'ai_processed_at' => now(),
+        ]);
+
+        return $submission->refresh();
+    }
+
+    public function markMailProcessing(
+        ContactSubmission $submission,
+    ): ContactSubmission {
+        $submission->update([
+            'owner_mail_status' => MailStatus::Pending,
+            'user_mail_status' => MailStatus::Pending,
+        ]);
+
+        return $submission->refresh();
+    }
+
+    public function saveMailResult(
+        ContactSubmission $submission,
+        ContactMailResult $result,
+    ): ContactSubmission {
+        $completedAt = now();
+
+        $submission->update([
+            'processing_status' => $result->processingStatus(),
+            'owner_mail_status' => $result->ownerStatus,
+            'user_mail_status' => $result->userStatus,
+            'owner_mail_sent_at' => $result->ownerStatus === MailStatus::Sent
+                ? $completedAt
+                : null,
+            'user_mail_sent_at' => $result->userStatus === MailStatus::Sent
+                ? $completedAt
+                : null,
+            'completed_at' => $completedAt,
         ]);
 
         return $submission->refresh();

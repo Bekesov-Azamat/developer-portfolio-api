@@ -3,6 +3,7 @@
 namespace Tests\Feature\Api;
 
 use App\Contracts\Ai\AiAnalyzer;
+use App\Contracts\Mail\ContactMailSender;
 use App\Data\Ai\AiAnalysisResult;
 use App\Enums\AiStatus;
 use App\Enums\ContactRequestType;
@@ -10,10 +11,14 @@ use App\Enums\MailStatus;
 use App\Enums\ProcessingStatus;
 use App\Enums\Sentiment;
 use App\Exceptions\AiAnalysisException;
+use App\Mail\OwnerContactSubmissionMail;
+use App\Mail\UserContactSubmissionMail;
 use App\Models\ContactSubmission;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Mockery\MockInterface;
+use RuntimeException;
 use Tests\TestCase;
 
 class ContactSubmissionApiTest extends TestCase
@@ -23,6 +28,7 @@ class ContactSubmissionApiTest extends TestCase
     public function test_contact_submission_is_normalized_analyzed_stored_and_returned_safely(): void
     {
         config()->set('ai.enabled', true);
+        config()->set('contact.mail.enabled', false);
 
         $comment = 'I would like to discuss a Laravel backend project.';
         $autoResponse = 'Спасибо за обращение! Готов обсудить детали проекта.';
@@ -77,7 +83,7 @@ class ContactSubmissionApiTest extends TestCase
             )
             ->assertJsonPath(
                 'data.status',
-                ProcessingStatus::Processing->value,
+                ProcessingStatus::PartiallyCompleted->value,
             )
             ->assertJsonPath(
                 'data.ai_status',
@@ -150,7 +156,7 @@ class ContactSubmissionApiTest extends TestCase
         $this->assertSame($comment, $submission->comment);
 
         $this->assertSame(
-            ProcessingStatus::Processing,
+            ProcessingStatus::PartiallyCompleted,
             $submission->processing_status,
         );
         $this->assertSame(
@@ -187,11 +193,11 @@ class ContactSubmissionApiTest extends TestCase
         $this->assertNotNull($submission->ai_processed_at);
 
         $this->assertSame(
-            MailStatus::NotAttempted,
+            MailStatus::Skipped,
             $submission->owner_mail_status,
         );
         $this->assertSame(
-            MailStatus::NotAttempted,
+            MailStatus::Skipped,
             $submission->user_mail_status,
         );
 
@@ -212,6 +218,7 @@ class ContactSubmissionApiTest extends TestCase
     public function test_ai_failure_uses_safe_fallback_and_keeps_submission(): void
     {
         config()->set('ai.enabled', true);
+        config()->set('contact.mail.enabled', false);
 
         $comment = 'Нужно обсудить разработку внутреннего сервиса.';
 
@@ -246,7 +253,7 @@ class ContactSubmissionApiTest extends TestCase
             ->assertJsonPath('success', true)
             ->assertJsonPath(
                 'data.status',
-                ProcessingStatus::Processing->value,
+                ProcessingStatus::PartiallyCompleted->value,
             )
             ->assertJsonPath(
                 'data.ai_status',
@@ -282,7 +289,7 @@ class ContactSubmissionApiTest extends TestCase
 
         $this->assertSame($comment, $submission->comment);
         $this->assertSame(
-            ProcessingStatus::Processing,
+            ProcessingStatus::PartiallyCompleted,
             $submission->processing_status,
         );
         $this->assertSame(
@@ -321,6 +328,7 @@ class ContactSubmissionApiTest extends TestCase
     public function test_disabled_ai_uses_fallback_without_calling_provider(): void
     {
         config()->set('ai.enabled', false);
+        config()->set('contact.mail.enabled', false);
 
         $this->mock(
             AiAnalyzer::class,
@@ -390,6 +398,142 @@ class ContactSubmissionApiTest extends TestCase
         );
         $this->assertNull($submission->ai_total_tokens);
         $this->assertNotNull($submission->ai_processed_at);
+    }
+
+    public function test_successful_mail_delivery_completes_submission(): void
+    {
+        config()->set('ai.enabled', false);
+        config()->set('contact.mail.enabled', true);
+        config()->set(
+            'contact.mail.owner_address',
+            'owner@example.com',
+        );
+
+        Mail::fake();
+
+        $response = $this->postJson('/api/contact', [
+            'name' => 'Мария Иванова',
+            'phone' => '+7 700 222 33 44',
+            'email' => 'maria@example.com',
+            'comment' => 'Хотела бы обсудить разработку Laravel API.',
+        ]);
+
+        $response
+            ->assertCreated()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath(
+                'data.status',
+                ProcessingStatus::Completed->value,
+            )
+            ->assertJsonPath(
+                'data.ai_status',
+                AiStatus::Fallback->value,
+            );
+
+        $submission = ContactSubmission::query()
+            ->firstOrFail();
+
+        $this->assertSame(
+            ProcessingStatus::Completed,
+            $submission->processing_status,
+        );
+        $this->assertSame(
+            MailStatus::Sent,
+            $submission->owner_mail_status,
+        );
+        $this->assertSame(
+            MailStatus::Sent,
+            $submission->user_mail_status,
+        );
+        $this->assertNotNull(
+            $submission->owner_mail_sent_at,
+        );
+        $this->assertNotNull(
+            $submission->user_mail_sent_at,
+        );
+        $this->assertNotNull($submission->completed_at);
+
+        Mail::assertSent(
+            OwnerContactSubmissionMail::class,
+            static fn (
+                OwnerContactSubmissionMail $mail,
+            ): bool => $mail->hasTo('owner@example.com'),
+        );
+
+        Mail::assertSent(
+            UserContactSubmissionMail::class,
+            static fn (
+                UserContactSubmissionMail $mail,
+            ): bool => $mail->hasTo('maria@example.com'),
+        );
+
+        Mail::assertSentCount(2);
+    }
+
+    public function test_owner_mail_failure_does_not_block_user_mail(): void
+    {
+        config()->set('ai.enabled', false);
+        config()->set('contact.mail.enabled', true);
+        config()->set(
+            'contact.mail.owner_address',
+            'owner@example.com',
+        );
+
+        $this->mock(
+            ContactMailSender::class,
+            function (MockInterface $mock): void {
+                $mock
+                    ->shouldReceive('sendOwner')
+                    ->once()
+                    ->andThrow(
+                        new RuntimeException(
+                            'Simulated owner mail failure.',
+                        ),
+                    );
+
+                $mock
+                    ->shouldReceive('sendUser')
+                    ->once();
+            },
+        );
+
+        $response = $this->postJson('/api/contact', [
+            'name' => 'Пётр Соколов',
+            'phone' => '+7 700 333 44 55',
+            'email' => 'petr@example.com',
+            'comment' => 'Нужна консультация по Laravel-проекту.',
+        ]);
+
+        $response
+            ->assertCreated()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath(
+                'data.status',
+                ProcessingStatus::PartiallyCompleted->value,
+            );
+
+        $submission = ContactSubmission::query()
+            ->firstOrFail();
+
+        $this->assertSame(
+            ProcessingStatus::PartiallyCompleted,
+            $submission->processing_status,
+        );
+        $this->assertSame(
+            MailStatus::Failed,
+            $submission->owner_mail_status,
+        );
+        $this->assertSame(
+            MailStatus::Sent,
+            $submission->user_mail_status,
+        );
+        $this->assertNull(
+            $submission->owner_mail_sent_at,
+        );
+        $this->assertNotNull(
+            $submission->user_mail_sent_at,
+        );
+        $this->assertNotNull($submission->completed_at);
     }
 
     public function test_invalid_contact_submission_returns_json_validation_errors(): void

@@ -37,3 +37,10 @@ services:
         exec tail -f /dev/null
 
     init: true
+
+  mailpit:
+    image: axllent/mailpit:v1.30.4
+    restart: unless-stopped
+
+    ports:
+      - "${MAILPIT_UI_PORT:-8025}:8025"

@@ -17,6 +17,7 @@ final readonly class ContactSubmissionService
     public function __construct(
         private ContactSubmissionRepository $repository,
         private AiAnalyzer $aiAnalyzer,
+        private ContactMailService $mailService,
     ) {}
 
     public function submit(
@@ -34,6 +35,23 @@ final readonly class ContactSubmissionService
             $submission,
         );
 
+        $submission = $this->analyze($submission);
+
+        $submission = $this->repository->markMailProcessing(
+            $submission,
+        );
+
+        $mailResult = $this->mailService->send($submission);
+
+        return $this->repository->saveMailResult(
+            submission: $submission,
+            result: $mailResult,
+        );
+    }
+
+    private function analyze(
+        ContactSubmission $submission,
+    ): ContactSubmission {
         if (! (bool) config('ai.enabled', false)) {
             return $this->saveFallback($submission);
         }

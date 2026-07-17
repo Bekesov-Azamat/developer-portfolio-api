@@ -3,9 +3,11 @@
 namespace App\Providers;
 
 use App\Contracts\Ai\AiAnalyzer;
+use App\Contracts\Mail\ContactMailSender;
 use App\Contracts\Repositories\ContactSubmissionRepository;
 use App\Http\Middleware\AssignRequestId;
 use App\Infrastructure\Ai\GroqAiAnalyzer;
+use App\Infrastructure\Mail\LaravelContactMailSender;
 use App\Repositories\EloquentContactSubmissionRepository;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\JsonResponse;
@@ -21,6 +23,11 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(
             ContactSubmissionRepository::class,
             EloquentContactSubmissionRepository::class,
+        );
+
+        $this->app->bind(
+            ContactMailSender::class,
+            LaravelContactMailSender::class,
         );
 
         $this->app->singleton(

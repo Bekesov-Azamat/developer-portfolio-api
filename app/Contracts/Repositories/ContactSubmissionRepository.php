@@ -4,6 +4,7 @@ namespace App\Contracts\Repositories;
 
 use App\Data\Ai\AiAnalysisResult;
 use App\Data\ContactSubmissionData;
+use App\Data\Mail\ContactMailResult;
 use App\Enums\AiStatus;
 use App\Models\ContactSubmission;
 
@@ -23,5 +24,14 @@ interface ContactSubmissionRepository
         ContactSubmission $submission,
         AiAnalysisResult $result,
         AiStatus $status,
+    ): ContactSubmission;
+
+    public function markMailProcessing(
+        ContactSubmission $submission,
+    ): ContactSubmission;
+
+    public function saveMailResult(
+        ContactSubmission $submission,
+        ContactMailResult $result,
     ): ContactSubmission;
 }
