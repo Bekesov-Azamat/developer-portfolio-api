@@ -3,11 +3,15 @@
 namespace App\Providers;
 
 use App\Contracts\Ai\AiAnalyzer;
+use App\Contracts\Health\DatabaseHealthChecker;
 use App\Contracts\Mail\ContactMailSender;
+use App\Contracts\Repositories\ContactMetricsRepository;
 use App\Contracts\Repositories\ContactSubmissionRepository;
 use App\Http\Middleware\AssignRequestId;
 use App\Infrastructure\Ai\GroqAiAnalyzer;
+use App\Infrastructure\Health\LaravelDatabaseHealthChecker;
 use App\Infrastructure\Mail\LaravelContactMailSender;
+use App\Repositories\EloquentContactMetricsRepository;
 use App\Repositories\EloquentContactSubmissionRepository;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\JsonResponse;
@@ -21,6 +25,11 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(
+            ContactMetricsRepository::class,
+            EloquentContactMetricsRepository::class,
+        );
+
+        $this->app->bind(
             ContactSubmissionRepository::class,
             EloquentContactSubmissionRepository::class,
         );
@@ -28,6 +37,11 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(
             ContactMailSender::class,
             LaravelContactMailSender::class,
+        );
+
+        $this->app->bind(
+            DatabaseHealthChecker::class,
+            LaravelDatabaseHealthChecker::class,
         );
 
         $this->app->singleton(
