@@ -1,0 +1,39 @@
+name: ${COMPOSE_PROJECT_NAME:-developer-portfolio-api}
+
+services:
+  app:
+    image: developer-portfolio-api-app:dev
+
+    build:
+      context: .
+      dockerfile: docker/backend/Dockerfile
+      args:
+        APP_UID: ${HOST_UID:-1000}
+        APP_GID: ${HOST_GID:-1000}
+
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+
+    working_dir: /workspace
+
+    environment:
+      HOME: /home/app
+      COMPOSER_HOME: /home/app/.composer
+
+    volumes:
+      - ./:/workspace
+
+    ports:
+      - "${APP_PORT:-8020}:8000"
+
+    command:
+      - sh
+      - -lc
+      - |
+        if [ -f /workspace/artisan ]; then
+          exec php artisan serve --host=0.0.0.0 --port=8000
+        fi
+
+        echo "Laravel application has not been created yet."
+        exec tail -f /dev/null
+
+    init: true
