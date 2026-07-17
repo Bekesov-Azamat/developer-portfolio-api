@@ -1,0 +1,860 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Developer Portfolio API",
+    "version": "1.0.0",
+    "description": "Backend API for a developer portfolio contact form. It validates and stores contact submissions, performs AI analysis, generates a Russian auto-response, sends email notifications, and exposes health and aggregate metrics endpoints."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8020",
+      "description": "Local Docker environment"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Service",
+      "description": "Service metadata and health endpoints"
+    },
+    {
+      "name": "Contact",
+      "description": "Contact form submission processing"
+    },
+    {
+      "name": "Observability",
+      "description": "Safe aggregate service metrics"
+    }
+  ],
+  "paths": {
+    "/api": {
+      "get": {
+        "tags": [
+          "Service"
+        ],
+        "summary": "Get service metadata",
+        "operationId": "getApiRoot",
+        "responses": {
+          "200": {
+            "description": "Service metadata returned successfully.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiRootResponse"
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "service": "Developer Portfolio API",
+                    "version": "1.0.0",
+                    "status": "operational"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/contact": {
+      "post": {
+        "tags": [
+          "Contact"
+        ],
+        "summary": "Submit a portfolio contact request",
+        "description": "Validates and stores a contact request, performs one AI analysis attempt or uses a safe fallback, sends independent owner and user emails, and returns the generated response.",
+        "operationId": "submitContactRequest",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OptionalRequestId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContactSubmissionRequest"
+              },
+              "example": {
+                "name": "Иван Петров",
+                "phone": "+7 700 123 45 67",
+                "email": "ivan@example.com",
+                "comment": "Здравствуйте! Нужна разработка Laravel API для внутренней системы управления заказами."
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Contact request accepted and processed.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContactSubmissionResponse"
+                },
+                "example": {
+                  "data": {
+                    "request_id": "872497bf-ad0c-419f-bbce-9bf31cfab15e",
+                    "status": "completed",
+                    "ai_status": "succeeded",
+                    "analysis": {
+                      "sentiment": "positive",
+                      "sentiment_score": 0.6,
+                      "request_type": "project_inquiry"
+                    },
+                    "auto_response": "Здравствуйте! Спасибо за ваш запрос. Я готов обсудить детали проекта и уточнить требования.",
+                    "submitted_at": "2026-07-17T21:45:45.000000Z"
+                  },
+                  "success": true,
+                  "message": "Contact submission accepted."
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Validation failed.",
+                  "request_id": "44984798-5058-4c50-bf1d-f61b9db4822c",
+                  "errors": {
+                    "email": [
+                      "The email field must be a valid email address."
+                    ],
+                    "comment": [
+                      "The comment field must be at least 10 characters."
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Contact submission rate limit exceeded.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              },
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Too many contact submissions. Please try again later.",
+                  "request_id": "0a30b0d0-c303-48cb-b817-39800dd92bb2"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/health": {
+      "get": {
+        "tags": [
+          "Service"
+        ],
+        "summary": "Check application and database health",
+        "operationId": "getHealth",
+        "responses": {
+          "200": {
+            "description": "Application and database are healthy.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                },
+                "example": {
+                  "success": true,
+                  "status": "healthy",
+                  "version": "1.0.0",
+                  "checks": {
+                    "application": {
+                      "ok": true
+                    },
+                    "database": {
+                      "ok": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database health check failed.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                },
+                "example": {
+                  "success": false,
+                  "status": "unhealthy",
+                  "version": "1.0.0",
+                  "checks": {
+                    "application": {
+                      "ok": true
+                    },
+                    "database": {
+                      "ok": false
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/metrics": {
+      "get": {
+        "tags": [
+          "Observability"
+        ],
+        "summary": "Get aggregate contact processing metrics",
+        "description": "Returns counts grouped by processing, AI, and email statuses. Personal contact data is never included.",
+        "operationId": "getContactMetrics",
+        "responses": {
+          "200": {
+            "description": "Aggregate metrics returned successfully.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetricsResponse"
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "total_submissions": 3,
+                    "processing": {
+                      "pending": 0,
+                      "processing": 1,
+                      "completed": 1,
+                      "partially_completed": 1,
+                      "failed": 0
+                    },
+                    "ai": {
+                      "not_attempted": 0,
+                      "pending": 1,
+                      "succeeded": 1,
+                      "fallback": 1,
+                      "failed": 0,
+                      "total_tokens": 150
+                    },
+                    "mail": {
+                      "owner": {
+                        "not_attempted": 0,
+                        "pending": 1,
+                        "sent": 1,
+                        "failed": 1,
+                        "skipped": 0
+                      },
+                      "user": {
+                        "not_attempted": 0,
+                        "pending": 1,
+                        "sent": 2,
+                        "failed": 0,
+                        "skipped": 0
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "OptionalRequestId": {
+        "name": "X-Request-ID",
+        "in": "header",
+        "required": false,
+        "description": "Optional UUID used for request tracing. Invalid values are replaced with a generated UUID.",
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    },
+    "headers": {
+      "RequestId": {
+        "description": "UUID used to trace this HTTP request in API logs.",
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "RetryAfter": {
+        "description": "Seconds until another request may be attempted.",
+        "schema": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "RateLimitLimit": {
+        "description": "Maximum number of contact submissions allowed in the current window.",
+        "schema": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "RateLimitRemaining": {
+        "description": "Remaining contact submissions in the current rate-limit window.",
+        "schema": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "responses": {
+      "InternalServerError": {
+        "description": "Unexpected server error returned without internal exception details.",
+        "headers": {
+          "X-Request-ID": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            },
+            "example": {
+              "success": false,
+              "message": "Internal server error.",
+              "request_id": "725c0d35-4929-4889-910c-1eab6575dc97"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "ContactSubmissionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "phone",
+          "email",
+          "comment"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 120,
+            "examples": [
+              "Иван Петров"
+            ]
+          },
+          "phone": {
+            "type": "string",
+            "minLength": 7,
+            "maxLength": 32,
+            "pattern": "^[+0-9() .-]+$",
+            "examples": [
+              "+7 700 123 45 67"
+            ]
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 255,
+            "examples": [
+              "ivan@example.com"
+            ]
+          },
+          "comment": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 4000,
+            "examples": [
+              "Здравствуйте! Нужна разработка Laravel API."
+            ]
+          }
+        }
+      },
+      "ContactSubmissionResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "success",
+          "message"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ContactSubmissionData"
+          },
+          "success": {
+            "type": "boolean",
+            "const": true
+          },
+          "message": {
+            "type": "string",
+            "const": "Contact submission accepted."
+          }
+        }
+      },
+      "ContactSubmissionData": {
+        "type": "object",
+        "required": [
+          "request_id",
+          "status",
+          "ai_status",
+          "analysis",
+          "auto_response",
+          "submitted_at"
+        ],
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ProcessingStatus"
+          },
+          "ai_status": {
+            "$ref": "#/components/schemas/AiStatus"
+          },
+          "analysis": {
+            "$ref": "#/components/schemas/AiAnalysis"
+          },
+          "auto_response": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 600
+          },
+          "submitted_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AiAnalysis": {
+        "type": "object",
+        "required": [
+          "sentiment",
+          "sentiment_score",
+          "request_type"
+        ],
+        "properties": {
+          "sentiment": {
+            "$ref": "#/components/schemas/Sentiment"
+          },
+          "sentiment_score": {
+            "type": "number",
+            "minimum": -1,
+            "maximum": 1
+          },
+          "request_type": {
+            "$ref": "#/components/schemas/ContactRequestType"
+          }
+        }
+      },
+      "ApiRootResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "data"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": true
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "service",
+              "version",
+              "status"
+            ],
+            "properties": {
+              "service": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "const": "operational"
+              }
+            }
+          }
+        }
+      },
+      "HealthResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "status",
+          "version",
+          "checks"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "healthy",
+              "unhealthy"
+            ]
+          },
+          "version": {
+            "type": "string"
+          },
+          "checks": {
+            "type": "object",
+            "required": [
+              "application",
+              "database"
+            ],
+            "properties": {
+              "application": {
+                "$ref": "#/components/schemas/HealthCheck"
+              },
+              "database": {
+                "$ref": "#/components/schemas/HealthCheck"
+              }
+            }
+          }
+        }
+      },
+      "HealthCheck": {
+        "type": "object",
+        "required": [
+          "ok"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          }
+        }
+      },
+      "MetricsResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "data"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/MetricsData"
+          }
+        }
+      },
+      "MetricsData": {
+        "type": "object",
+        "required": [
+          "total_submissions",
+          "processing",
+          "ai",
+          "mail"
+        ],
+        "properties": {
+          "total_submissions": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "processing": {
+            "$ref": "#/components/schemas/ProcessingMetrics"
+          },
+          "ai": {
+            "$ref": "#/components/schemas/AiMetrics"
+          },
+          "mail": {
+            "$ref": "#/components/schemas/MailMetrics"
+          }
+        }
+      },
+      "ProcessingMetrics": {
+        "type": "object",
+        "required": [
+          "pending",
+          "processing",
+          "completed",
+          "partially_completed",
+          "failed"
+        ],
+        "properties": {
+          "pending": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "processing": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "completed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "partially_completed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "failed": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "AiMetrics": {
+        "type": "object",
+        "required": [
+          "not_attempted",
+          "pending",
+          "succeeded",
+          "fallback",
+          "failed",
+          "total_tokens"
+        ],
+        "properties": {
+          "not_attempted": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "pending": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "succeeded": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "fallback": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "failed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "total_tokens": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "MailMetrics": {
+        "type": "object",
+        "required": [
+          "owner",
+          "user"
+        ],
+        "properties": {
+          "owner": {
+            "$ref": "#/components/schemas/MailStatusMetrics"
+          },
+          "user": {
+            "$ref": "#/components/schemas/MailStatusMetrics"
+          }
+        }
+      },
+      "MailStatusMetrics": {
+        "type": "object",
+        "required": [
+          "not_attempted",
+          "pending",
+          "sent",
+          "failed",
+          "skipped"
+        ],
+        "properties": {
+          "not_attempted": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "pending": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sent": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "failed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "skipped": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "ValidationErrorResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "message",
+          "request_id",
+          "errors"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "message": {
+            "type": "string",
+            "const": "Validation failed."
+          },
+          "request_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "errors": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "message",
+          "request_id"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "message": {
+            "type": "string"
+          },
+          "request_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
+      "ProcessingStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "processing",
+          "completed",
+          "partially_completed",
+          "failed"
+        ]
+      },
+      "AiStatus": {
+        "type": "string",
+        "enum": [
+          "not_attempted",
+          "pending",
+          "succeeded",
+          "fallback",
+          "failed"
+        ]
+      },
+      "Sentiment": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "positive",
+          "neutral",
+          "negative",
+          null
+        ]
+      },
+      "ContactRequestType": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "project_inquiry",
+          "job_opportunity",
+          "consultation",
+          "collaboration",
+          "feedback",
+          "other",
+          null
+        ]
+      }
+    }
+  }
+}

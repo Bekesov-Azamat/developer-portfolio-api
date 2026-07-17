@@ -1,0 +1,351 @@
+{
+  "info": {
+    "_postman_id": "ab590174-f18b-4f14-9e74-082d68fb0218",
+    "name": "Developer Portfolio API",
+    "description": "Ready-to-run requests for the Developer Portfolio API. The successful contact request performs the complete flow: validation, SQLite persistence, AI analysis or fallback, owner email, user email, and final JSON response.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8020",
+      "type": "string"
+    },
+    {
+      "key": "submission_request_id",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Service",
+      "item": [
+        {
+          "name": "Get service metadata",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "X-Request-ID",
+                "value": "{{$guid}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api"
+              ]
+            },
+            "description": "Returns service name, version, and operational status."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP status is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Service metadata is valid', function () {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.success).to.eql(true);",
+                  "    pm.expect(json.data.status).to.eql('operational');",
+                  "    pm.expect(json.data.version).to.be.a('string');",
+                  "});",
+                  "",
+                  "pm.test('X-Request-ID header is present', function () {",
+                  "    pm.expect(pm.response.headers.get('X-Request-ID')).to.match(/^[0-9a-f-]{36}$/i);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Check application health",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "X-Request-ID",
+                "value": "{{$guid}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/health",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "health"
+              ]
+            },
+            "description": "Checks the application and performs a real database connectivity query."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP status is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Application and database are healthy', function () {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.success).to.eql(true);",
+                  "    pm.expect(json.status).to.eql('healthy');",
+                  "    pm.expect(json.checks.application.ok).to.eql(true);",
+                  "    pm.expect(json.checks.database.ok).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Observability",
+      "item": [
+        {
+          "name": "Get aggregate metrics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "X-Request-ID",
+                "value": "{{$guid}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/metrics",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "metrics"
+              ]
+            },
+            "description": "Returns aggregate processing, AI, token, and email metrics without personal contact data."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP status is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Metrics structure is valid', function () {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.success).to.eql(true);",
+                  "    pm.expect(json.data.total_submissions).to.be.a('number');",
+                  "    pm.expect(json.data.processing).to.be.an('object');",
+                  "    pm.expect(json.data.ai).to.be.an('object');",
+                  "    pm.expect(json.data.mail.owner).to.be.an('object');",
+                  "    pm.expect(json.data.mail.user).to.be.an('object');",
+                  "});",
+                  "",
+                  "pm.test('Metrics do not expose personal fields', function () {",
+                  "    const raw = pm.response.text();",
+                  "    ['name', 'phone', 'email', 'comment', 'ip_hash', 'user_agent'].forEach(function (field) {",
+                  "        pm.expect(raw).not.to.include('\"' + field + '\"');",
+                  "    });",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Contact",
+      "item": [
+        {
+          "name": "Submit valid contact request",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "X-Request-ID",
+                "value": "{{$guid}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Test Client\",\n  \"phone\": \"+7 700 000 00 06\",\n  \"email\": \"postman-{{$timestamp}}@example.com\",\n  \"comment\": \"Здравствуйте! Нужна разработка Laravel API для внутренней системы управления заказами. Хотел бы обсудить архитектуру и сотрудничество.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/contact",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "contact"
+              ]
+            },
+            "description": "Performs the complete contact workflow. With local AI and mail enabled, this makes one Groq request and sends two messages to Mailpit."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP status is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "",
+                  "pm.test('Contact response is valid', function () {",
+                  "    pm.expect(json.success).to.eql(true);",
+                  "    pm.expect(json.message).to.eql('Contact submission accepted.');",
+                  "    pm.expect(json.data.request_id).to.match(/^[0-9a-f-]{36}$/i);",
+                  "    pm.expect(['completed', 'partially_completed']).to.include(json.data.status);",
+                  "    pm.expect(['succeeded', 'fallback']).to.include(json.data.ai_status);",
+                  "    pm.expect(json.data.auto_response).to.be.a('string').and.not.empty;",
+                  "});",
+                  "",
+                  "pm.test('AI analysis is present', function () {",
+                  "    pm.expect(['positive', 'neutral', 'negative']).to.include(json.data.analysis.sentiment);",
+                  "    pm.expect(json.data.analysis.sentiment_score).to.be.a('number');",
+                  "    pm.expect(json.data.analysis.sentiment_score).to.be.within(-1, 1);",
+                  "    pm.expect(json.data.analysis.request_type).to.be.a('string');",
+                  "});",
+                  "",
+                  "pm.test('Private input fields are not returned', function () {",
+                  "    ['name', 'phone', 'email', 'comment', 'ip_hash', 'user_agent'].forEach(function (field) {",
+                  "        pm.expect(json.data).not.to.have.property(field);",
+                  "    });",
+                  "});",
+                  "",
+                  "pm.collectionVariables.set('submission_request_id', json.data.request_id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reject invalid contact request",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "X-Request-ID",
+                "value": "{{$guid}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"A\",\n  \"phone\": \"invalid phone!\",\n  \"email\": \"not-an-email\",\n  \"comment\": \"short\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/contact",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "contact"
+              ]
+            },
+            "description": "Confirms that invalid input receives the unified JSON validation response and is not stored."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP status is 422', function () {",
+                  "    pm.response.to.have.status(422);",
+                  "});",
+                  "",
+                  "pm.test('Validation response contains all field errors', function () {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.success).to.eql(false);",
+                  "    pm.expect(json.message).to.eql('Validation failed.');",
+                  "    pm.expect(json.request_id).to.match(/^[0-9a-f-]{36}$/i);",
+                  "    ['name', 'phone', 'email', 'comment'].forEach(function (field) {",
+                  "        pm.expect(json.errors).to.have.property(field);",
+                  "    });",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
