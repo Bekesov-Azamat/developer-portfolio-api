@@ -123,6 +123,14 @@ return [
             'handler' => NullHandler::class,
         ],
 
+        'api_requests' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/api-requests.log'),
+            'level' => env('API_LOG_LEVEL', 'info'),
+            'days' => (int) env('API_LOG_DAYS', 14),
+            'replace_placeholders' => true,
+        ],
+
         'emergency' => [
             'path' => storage_path('logs/laravel.log'),
         ],

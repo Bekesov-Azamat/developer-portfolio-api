@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\ContactSubmissionController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', static function () {
@@ -25,3 +26,7 @@ Route::get('/health', static function () {
         ],
     ]);
 })->name('api.health');
+
+Route::post('/contact', ContactSubmissionController::class)
+    ->middleware('throttle:contact-submissions')
+    ->name('contact.store');

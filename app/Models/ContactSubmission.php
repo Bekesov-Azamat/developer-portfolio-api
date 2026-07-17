@@ -10,6 +10,12 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 
+/**
+ * @property ProcessingStatus $processing_status
+ * @property AiStatus $ai_status
+ * @property MailStatus $owner_mail_status
+ * @property MailStatus $user_mail_status
+ */
 class ContactSubmission extends Model
 {
     /** @use HasFactory<ContactSubmissionFactory> */
