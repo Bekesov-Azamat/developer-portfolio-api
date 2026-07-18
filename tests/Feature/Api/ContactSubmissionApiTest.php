@@ -15,6 +15,7 @@ use App\Mail\OwnerContactSubmissionMail;
 use App\Mail\UserContactSubmissionMail;
 use App\Models\ContactSubmission;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Mockery\MockInterface;
@@ -323,6 +324,130 @@ class ContactSubmissionApiTest extends TestCase
         );
         $this->assertNull($submission->ai_total_tokens);
         $this->assertNotNull($submission->ai_processed_at);
+    }
+
+    public function test_unsafe_groq_auto_response_uses_safe_fallback(): void
+    {
+        config()->set('ai.enabled', true);
+        config()->set('contact.mail.enabled', false);
+        config()->set(
+            'ai.providers.groq.base_url',
+            'https://api.groq.test/openai/v1',
+        );
+        config()->set(
+            'ai.providers.groq.api_key',
+            'fake-api-key',
+        );
+        config()->set(
+            'ai.providers.groq.model',
+            'openai/gpt-oss-120b',
+        );
+
+        $this->app->forgetInstance(
+            AiAnalyzer::class,
+        );
+
+        $unsafeAutoResponse = implode(' ', [
+            'Здравствуйте!',
+            'Мы свяжемся с вами скоро.',
+        ]);
+
+        Http::fake([
+            'https://api.groq.test/openai/v1/*' => Http::response([
+                'model' => 'openai/gpt-oss-120b',
+                'choices' => [
+                    [
+                        'message' => [
+                            'content' => json_encode([
+                                'sentiment' => 'positive',
+                                'sentiment_score' => 0.7,
+                                'request_type' => 'project_inquiry',
+                                'auto_response' => $unsafeAutoResponse,
+                            ], JSON_THROW_ON_ERROR),
+                        ],
+                    ],
+                ],
+                'usage' => [
+                    'prompt_tokens' => 120,
+                    'completion_tokens' => 40,
+                    'total_tokens' => 160,
+                ],
+            ]),
+        ]);
+
+        $response = $this->postJson('/api/contact', [
+            'name' => 'Сергей Волков',
+            'phone' => '+7 700 444 55 66',
+            'email' => 'sergey@example.com',
+            'comment' => implode(' ', [
+                'Здравствуйте!',
+                'Нужна разработка Laravel API',
+                'для внутреннего проекта.',
+            ]),
+        ]);
+
+        $fallbackResponse = (string) config(
+            'ai.fallback_response',
+        );
+
+        $response
+            ->assertCreated()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath(
+                'data.status',
+                ProcessingStatus::PartiallyCompleted->value,
+            )
+            ->assertJsonPath(
+                'data.ai_status',
+                AiStatus::Fallback->value,
+            )
+            ->assertJsonPath(
+                'data.analysis.sentiment',
+                Sentiment::Neutral->value,
+            )
+            ->assertJsonPath(
+                'data.analysis.request_type',
+                ContactRequestType::Other->value,
+            )
+            ->assertJsonPath(
+                'data.auto_response',
+                $fallbackResponse,
+            );
+
+        Http::assertSentCount(1);
+
+        $this->assertDatabaseCount(
+            'contact_submissions',
+            1,
+        );
+
+        $submission = ContactSubmission::query()
+            ->firstOrFail();
+
+        $this->assertSame(
+            AiStatus::Fallback,
+            $submission->ai_status,
+        );
+        $this->assertSame(
+            $fallbackResponse,
+            $submission->auto_response,
+        );
+        $this->assertNotSame(
+            $unsafeAutoResponse,
+            $submission->auto_response,
+        );
+        $this->assertNull(
+            $submission->ai_prompt_tokens,
+        );
+        $this->assertNull(
+            $submission->ai_completion_tokens,
+        );
+        $this->assertNull(
+            $submission->ai_total_tokens,
+        );
+        $this->assertNotNull(
+            $submission->ai_processed_at,
+        );
     }
 
     public function test_disabled_ai_uses_fallback_without_calling_provider(): void

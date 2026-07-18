@@ -7,6 +7,7 @@ use App\Data\Ai\AiAnalysisResult;
 use App\Enums\ContactRequestType;
 use App\Enums\Sentiment;
 use App\Exceptions\AiAnalysisException;
+use App\Services\Ai\AiAutoResponseValidator;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
@@ -24,6 +25,7 @@ final readonly class GroqAiAnalyzer implements AiAnalyzer
         private int $maxOutputTokens,
         private float $temperature,
         private string $reasoningEffort,
+        private AiAutoResponseValidator $autoResponseValidator,
     ) {}
 
     public function analyze(string $comment): AiAnalysisResult
@@ -219,6 +221,12 @@ final readonly class GroqAiAnalyzer implements AiAnalyzer
             );
         }
 
+        $autoResponse = trim($autoResponse);
+
+        $this->autoResponseValidator->validate(
+            $autoResponse,
+        );
+
         $usage = $payload['usage'] ?? [];
 
         if (! is_array($usage)) {
@@ -232,7 +240,7 @@ final readonly class GroqAiAnalyzer implements AiAnalyzer
                 sentiment: $sentiment,
                 sentimentScore: (float) $sentimentScore,
                 requestType: $requestType,
-                autoResponse: trim($autoResponse),
+                autoResponse: $autoResponse,
                 provider: 'groq',
                 model: is_string($responseModel)
                     ? $responseModel

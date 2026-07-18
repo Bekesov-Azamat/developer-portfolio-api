@@ -6,6 +6,7 @@ use App\Enums\ContactRequestType;
 use App\Enums\Sentiment;
 use App\Exceptions\AiAnalysisException;
 use App\Infrastructure\Ai\GroqAiAnalyzer;
+use App\Services\Ai\AiAutoResponseValidator;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -24,7 +25,7 @@ class GroqAiAnalyzerTest extends TestCase
                                 'sentiment' => 'positive',
                                 'sentiment_score' => 0.6,
                                 'request_type' => 'project_inquiry',
-                                'auto_response' => 'Спасибо за обращение! Готов обсудить детали проекта.',
+                                'auto_response' => 'Здравствуйте! Спасибо за обращение. Я готов обсудить детали проекта.',
                             ], JSON_THROW_ON_ERROR),
                         ],
                     ],
@@ -91,7 +92,7 @@ class GroqAiAnalyzerTest extends TestCase
                                 'sentiment' => 'neutral',
                                 'sentiment_score' => 0,
                                 'request_type' => 'other',
-                                'auto_response' => 'Спасибо за обращение! Я ознакомлюсь с сообщением.',
+                                'auto_response' => 'Здравствуйте! Спасибо за обращение. Я ознакомлюсь с сообщением.',
                             ], JSON_THROW_ON_ERROR),
                         ],
                     ],
@@ -142,6 +143,36 @@ class GroqAiAnalyzerTest extends TestCase
         );
     }
 
+    public function test_it_rejects_unsafe_auto_response(): void
+    {
+        Http::fake([
+            'https://api.groq.test/openai/v1/*' => Http::response([
+                'model' => 'openai/gpt-oss-120b',
+                'choices' => [
+                    [
+                        'message' => [
+                            'content' => json_encode([
+                                'sentiment' => 'neutral',
+                                'sentiment_score' => 0,
+                                'request_type' => 'other',
+                                'auto_response' => 'Здравствуйте! Мы свяжемся с вами скоро.',
+                            ], JSON_THROW_ON_ERROR),
+                        ],
+                    ],
+                ],
+            ]),
+        ]);
+
+        $this->expectException(AiAnalysisException::class);
+        $this->expectExceptionMessage(
+            'AI auto response uses plural developer voice.',
+        );
+
+        $this->analyzer()->analyze(
+            'Тестовое обращение пользователя.',
+        );
+    }
+
     public function test_it_rejects_malformed_ai_json(): void
     {
         Http::fake([
@@ -179,6 +210,7 @@ class GroqAiAnalyzerTest extends TestCase
             maxOutputTokens: 250,
             temperature: 0.2,
             reasoningEffort: 'low',
+            autoResponseValidator: new AiAutoResponseValidator,
         );
     }
 }

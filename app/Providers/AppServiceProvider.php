@@ -13,7 +13,9 @@ use App\Infrastructure\Health\LaravelDatabaseHealthChecker;
 use App\Infrastructure\Mail\LaravelContactMailSender;
 use App\Repositories\EloquentContactMetricsRepository;
 use App\Repositories\EloquentContactSubmissionRepository;
+use App\Services\Ai\AiAutoResponseValidator;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Contracts\Container\Container;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -46,7 +48,7 @@ class AppServiceProvider extends ServiceProvider
 
         $this->app->singleton(
             AiAnalyzer::class,
-            static fn (): GroqAiAnalyzer => new GroqAiAnalyzer(
+            static fn (Container $app): GroqAiAnalyzer => new GroqAiAnalyzer(
                 baseUrl: (string) config(
                     'ai.providers.groq.base_url',
                 ),
@@ -78,6 +80,9 @@ class AppServiceProvider extends ServiceProvider
                 reasoningEffort: (string) config(
                     'ai.providers.groq.reasoning_effort',
                     'low',
+                ),
+                autoResponseValidator: $app->make(
+                    AiAutoResponseValidator::class,
                 ),
             ),
         );

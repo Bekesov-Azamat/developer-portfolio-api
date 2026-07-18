@@ -46,6 +46,8 @@ RUN apk add --no-cache \
 
 COPY --from=composer /usr/bin/composer /usr/local/bin/composer
 
+COPY docker/backend/php-security.ini /usr/local/etc/php/conf.d/99-security.ini
+
 RUN addgroup -g "${APP_GID}" -S app \
     && adduser \
         -u "${APP_UID}" \
