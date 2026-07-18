@@ -7,12 +7,13 @@ vendor
 node_modules
 
 database/*.sqlite
-database/.sqlite-
+database/.sqlite-*
 
 storage/logs/*
 storage/framework/cache/*
 storage/framework/sessions/*
 storage/framework/views/*
+
 bootstrap/cache/*.php
 
 .phpunit.cache
@@ -21,3 +22,4 @@ bootstrap/cache/*.php
 .idea
 .vscode
 .cursor
+.DS_Store
