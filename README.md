@@ -63,32 +63,17 @@ Frontend
 
 ## 🖼 Скриншоты
 
-<table>
-<tr>
-<td width="50%">
-<img src="docs/screenshots/1.png" alt="Screenshot 1">
-</td>
-<td width="50%">
-<img src="docs/screenshots/2.png" alt="Screenshot 2">
-</td>
-</tr>
-<tr>
-<td width="50%">
-<img src="docs/screenshots/3.png" alt="Screenshot 3">
-</td>
-<td width="50%">
-<img src="docs/screenshots/4.png" alt="Screenshot 4">
-</td>
-</tr>
-<tr>
-<td width="50%">
-<img src="docs/screenshots/5.png" alt="Screenshot 5">
-</td>
-<td width="50%">
-<img src="docs/screenshots/6.png" alt="Screenshot 6">
-</td>
-</tr>
-</table>
+![Скриншот 1](docs/screenshots/1.jpeg)
+
+![Скриншот 2](docs/screenshots/2.jpeg)
+
+![Скриншот 3](docs/screenshots/3.jpeg)
+
+![Скриншот 4](docs/screenshots/4.jpeg)
+
+![Скриншот 5](docs/screenshots/5.jpeg)
+
+![Скриншот 6](docs/screenshots/6.jpeg)
 
 ---
 
