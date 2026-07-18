@@ -2,4 +2,5 @@
 
 use Illuminate\Support\Facades\Route;
 
-Route::redirect('/', '/api');
+Route::view('/', 'portfolio')
+    ->name('portfolio.home');
